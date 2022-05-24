@@ -108,7 +108,7 @@ TEST_F(ActiveTcpListenerTest, PopulateSNIWhenActiveTcpSocketTimeout) {
           ReturnRef(*active_listener)));
 
   // calling the onAcceptWorker() to create the ActiveTcpSocket.
-  active_listener->onAcceptWorker(std::move(accepted_socket), false, false);
+  active_listener->onAcceptWorker(std::move(accepted_socket), false, false, 0);
   // get the ActiveTcpSocket pointer before unlink() removed from the link-list.
   ActiveTcpSocket* tcp_socket = active_listener->sockets_.front().get();
   // trigger the onTimeout event manually, since the timer is fake.

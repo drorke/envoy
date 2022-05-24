@@ -20,7 +20,7 @@ public:
   // ConnectionBalancer
   void registerHandler(BalancedConnectionHandler& handler) override;
   void unregisterHandler(BalancedConnectionHandler& handler) override;
-  BalancedConnectionHandler& pickTargetHandler(BalancedConnectionHandler& current_handler) override;
+  BalancedConnectionHandler& pickTargetHandler(BalancedConnectionHandler& current_handler, int connSeq) override;
 
 private:
   absl::Mutex lock_;
@@ -37,7 +37,7 @@ public:
   void registerHandler(BalancedConnectionHandler&) override {}
   void unregisterHandler(BalancedConnectionHandler&) override {}
   BalancedConnectionHandler&
-  pickTargetHandler(BalancedConnectionHandler& current_handler) override {
+  pickTargetHandler(BalancedConnectionHandler& current_handler, int) override {
     // In the NOP case just increment the connection count and return the current handler.
     current_handler.incNumConnections();
     return current_handler;

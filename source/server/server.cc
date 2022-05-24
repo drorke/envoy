@@ -334,6 +334,9 @@ void InstanceUtil::loadBootstrapConfig(envoy::config::bootstrap::v3::Bootstrap& 
 void InstanceImpl::initialize(const Options& options,
                               Network::Address::InstanceConstSharedPtr local_address,
                               ComponentFactory& component_factory) {
+
+  ENVOY_LOG(info, "initializing envoy with balance_across_outbound_listeners changes, v2");
+
   ENVOY_LOG(info, "initializing epoch {} (base id={}, hot restart version={})",
             options.restartEpoch(), restarter_.baseId(), restarter_.version());
 

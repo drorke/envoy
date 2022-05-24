@@ -34,7 +34,8 @@ public:
   virtual void post(Network::ConnectionSocketPtr&& socket) PURE;
 
   virtual void onAcceptWorker(Network::ConnectionSocketPtr&& socket,
-                              bool hand_off_restored_destination_connections, bool rebalanced) PURE;
+                              bool hand_off_restored_destination_connections, bool rebalanced, int connSeq) PURE;
+  virtual uint32_t workerIndex() PURE;
 };
 
 /**
@@ -65,7 +66,7 @@ public:
    *       balancer. See the comments above for more explanation.
    */
   virtual BalancedConnectionHandler&
-  pickTargetHandler(BalancedConnectionHandler& current_handler) PURE;
+  pickTargetHandler(BalancedConnectionHandler& current_handler, int connSeq) PURE;
 };
 
 using ConnectionBalancerSharedPtr = std::shared_ptr<ConnectionBalancer>;

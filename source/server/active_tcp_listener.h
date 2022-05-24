@@ -34,9 +34,9 @@ class ActiveTcpListener final : public Network::TcpListenerCallbacks,
                                 public Network::BalancedConnectionHandler,
                                 Logger::Loggable<Logger::Id::conn_handler> {
 public:
-  ActiveTcpListener(Network::TcpConnectionHandler& parent, Network::ListenerConfig& config);
+  ActiveTcpListener(uint32_t worker_index, Network::TcpConnectionHandler& parent, Network::ListenerConfig& config);
   ActiveTcpListener(Network::TcpConnectionHandler& parent, Network::ListenerPtr&& listener,
-                    Network::ListenerConfig& config);
+                    Network::ListenerConfig& config, uint32_t worker_index);
   ~ActiveTcpListener() override;
   bool listenerConnectionLimitReached() const {
     // TODO(tonya11en): Delegate enforcement of per-listener connection limits to overload
@@ -68,7 +68,8 @@ public:
   }
   void post(Network::ConnectionSocketPtr&& socket) override;
   void onAcceptWorker(Network::ConnectionSocketPtr&& socket,
-                      bool hand_off_restored_destination_connections, bool rebalanced) override;
+                      bool hand_off_restored_destination_connections, bool rebalanced, int connSeq) override;
+  uint32_t workerIndex() override { return worker_index_; }
 
   /**
    * Remove and destroy an active connection.
@@ -111,6 +112,9 @@ public:
   // connection balancing across per-handler listeners.
   std::atomic<uint64_t> num_listener_connections_{};
   bool is_deleting_{false};
+
+protected:
+  uint32_t worker_index_;
 };
 
 /**
@@ -253,6 +257,7 @@ struct ActiveTcpSocket : public Network::ListenerFilterManager,
   Event::TimerPtr timer_;
   std::unique_ptr<StreamInfo::StreamInfo> stream_info_;
   bool connected_{false};
+  static int connSeq_;
 };
 using ActiveTcpListenerOptRef = absl::optional<std::reference_wrapper<ActiveTcpListener>>;
 

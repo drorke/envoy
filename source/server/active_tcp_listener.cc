@@ -25,21 +25,25 @@ void emitLogs(Network::ListenerConfig& config, StreamInfo::StreamInfo& stream_in
 }
 } // namespace
 
-ActiveTcpListener::ActiveTcpListener(Network::TcpConnectionHandler& parent,
+int ActiveTcpSocket::connSeq_ = 0;
+
+ActiveTcpListener::ActiveTcpListener(uint32_t worker_index, Network::TcpConnectionHandler& parent,
                                      Network::ListenerConfig& config)
     : ActiveTcpListener(
           parent,
           parent.dispatcher().createListener(config.listenSocketFactory().getListenSocket(), *this,
                                              config.bindToPort(), config.tcpBacklogSize()),
-          config) {}
+          config, worker_index) {}
 
 ActiveTcpListener::ActiveTcpListener(Network::TcpConnectionHandler& parent,
                                      Network::ListenerPtr&& listener,
-                                     Network::ListenerConfig& config)
+                                     Network::ListenerConfig& config,
+                                     uint32_t worker_index)
     : ActiveListenerImplBase(parent, &config), parent_(parent), listener_(std::move(listener)),
       listener_filters_timeout_(config.listenerFiltersTimeout()),
       continue_on_listener_filters_timeout_(config.continueOnListenerFiltersTimeout()) {
   config.connectionBalancer().registerHandler(*this);
+  worker_index_ = worker_index;
 }
 
 ActiveTcpListener::~ActiveTcpListener() {
@@ -193,7 +197,9 @@ void ActiveTcpSocket::newConnection() {
     // Note also that we must account for the number of connections properly across both listeners.
     // TODO(mattklein123): See note in ~ActiveTcpSocket() related to making this accounting better.
     listener_.decNumConnections();
-    new_listener.value().get().onAcceptWorker(std::move(socket_), false, false);
+    connSeq_++;
+    ENVOY_LOG(info, "passing sequence number {} to onAcceptWorker", connSeq_);
+    new_listener.value().get().onAcceptWorker(std::move(socket_), false, false, connSeq_);
   } else {
     // Set default transport protocol if none of the listener filters did it.
     if (socket_->detectedTransportProtocol().empty()) {
@@ -218,7 +224,7 @@ void ActiveTcpListener::onAccept(Network::ConnectionSocketPtr&& socket) {
     return;
   }
 
-  onAcceptWorker(std::move(socket), config_->handOffRestoredDestinationConnections(), false);
+  onAcceptWorker(std::move(socket), config_->handOffRestoredDestinationConnections(), false, 0);
 }
 
 void ActiveTcpListener::onReject(RejectCause cause) {
@@ -234,10 +240,12 @@ void ActiveTcpListener::onReject(RejectCause cause) {
 
 void ActiveTcpListener::onAcceptWorker(Network::ConnectionSocketPtr&& socket,
                                        bool hand_off_restored_destination_connections,
-                                       bool rebalanced) {
+                                       bool rebalanced,
+                                       int connSeq) {
   if (!rebalanced) {
+    ENVOY_LOG(info, "passing sequence number {} to pickTargetHandler", connSeq);
     Network::BalancedConnectionHandler& target_handler =
-        config_->connectionBalancer().pickTargetHandler(*this);
+        config_->connectionBalancer().pickTargetHandler(*this, connSeq);
     if (&target_handler != this) {
       target_handler.post(std::move(socket));
       return;
@@ -379,7 +387,7 @@ void ActiveTcpListener::post(Network::ConnectionSocketPtr&& socket) {
                              handoff = config_->handOffRestoredDestinationConnections()]() {
     auto balanced_handler = parent.getBalancedHandlerByTag(tag);
     if (balanced_handler.has_value()) {
-      balanced_handler->get().onAcceptWorker(std::move(socket_to_rebalance->socket), handoff, true);
+      balanced_handler->get().onAcceptWorker(std::move(socket_to_rebalance->socket), handoff, true, 0);
       return;
     }
   });

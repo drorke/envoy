@@ -1,3 +1,5 @@
+#include <iostream>
+
 #include "source/common/network/connection_balancer_impl.h"
 
 namespace Envoy {
@@ -17,14 +19,30 @@ void ExactConnectionBalancerImpl::unregisterHandler(BalancedConnectionHandler& h
 }
 
 BalancedConnectionHandler&
-ExactConnectionBalancerImpl::pickTargetHandler(BalancedConnectionHandler&) {
+ExactConnectionBalancerImpl::pickTargetHandler(BalancedConnectionHandler&, int connSeq) {
   BalancedConnectionHandler* min_connection_handler = nullptr;
   {
     absl::MutexLock lock(&lock_);
-    for (BalancedConnectionHandler* handler : handlers_) {
-      if (min_connection_handler == nullptr ||
-          handler->numConnections() < min_connection_handler->numConnections()) {
-        min_connection_handler = handler;
+    if (connSeq != 0) {
+      std::cerr << "handlers_.size(): " << handlers_.size() << std::endl;
+      int workerCount = handlers_.size();
+      uint32_t targetWorkerIndex = connSeq % workerCount;
+      std::cerr << "targetWorkerIndex: " << targetWorkerIndex << std::endl;
+      for (BalancedConnectionHandler* handler : handlers_) {
+        std::cerr << "handler worker index : " << handler->workerIndex() << std::endl;
+        if (handler->workerIndex() == targetWorkerIndex) {
+          min_connection_handler = handler;
+          break;
+        }
+      }
+      std::cerr << "picking handler " << min_connection_handler << " based on sequence " << connSeq << std::endl;
+      
+    } else {
+      for (BalancedConnectionHandler* handler : handlers_) {
+        if (min_connection_handler == nullptr ||
+            handler->numConnections() < min_connection_handler->numConnections()) {
+          min_connection_handler = handler;
+        }
       }
     }
 
